@@ -24,3 +24,5 @@ void findinstring(std::string& text, char symbol);
 void printmyfile();
 
 int main();
+
+void print_results(std::vector<int>& values);
