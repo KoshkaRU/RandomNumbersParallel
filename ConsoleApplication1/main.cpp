@@ -6,8 +6,79 @@
 #include <conio.h>
 #include <thread>
 #include <mutex>
+#include <iostream>
+#include <queue>
+#include <chrono>
 
 using namespace std;
+
+class Message {
+
+	string message_text;
+
+public:
+
+	Message(string msg) : message_text{ msg } {};
+
+	string operator() () {
+
+		return this->message_text;
+
+	}
+
+};
+
+std::queue<Message> q;
+
+condition_variable cv;
+
+mutex m_queue;
+
+class F1 {
+
+public:
+
+	F1() {};
+
+	void operator() () {
+
+		this_thread::sleep_for(chrono::seconds{ 3 });
+
+		q.push(Message("Text of message in queue."));
+
+		cv.notify_one();
+
+	}
+
+};
+
+class F2 {
+
+public:
+
+	F2() {};
+
+	void operator() () {
+
+		unique_lock<mutex> lk(m_queue);
+
+		cout << "\tWaiting for queue..." << endl;
+
+		cv.wait(lk, []() {return !q.empty(); });
+
+		Message m = q.front();
+
+		q.pop();
+
+		lk.unlock();
+
+		cout << "\tMessage is: " << m() << endl << endl;
+
+	}
+
+};
+
+// Part 1 - paralell processing
 
 int thread_number = 0; // thread number's counter
 
@@ -23,17 +94,11 @@ using my_distribution = uniform_int_distribution<>; // the uniform random distri
 
 using my_engine = default_random_engine; // the default random generator
 
-mutex m; // experimental
+mutex m; // Mutex for cout control
 
-template<typename T>
-std::vector<T> range(const std::vector<T>& source, const int index_start, const int index_end) {
-
-	std::vector<T> sub(&source[index_start], &source[index_end]);
-
-	return sub;
-
-} // END: range
-
+// ---------------------------------------------------------- //
+// Function that process friquencies in the continueous order //
+// ---------------------------------------------------------- //
 inline void work_countinuos(vector<int>& values) { // inline because it used global variables
 
 	my_engine re{};
@@ -56,15 +121,19 @@ inline void work_countinuos(vector<int>& values) { // inline because it used glo
 
 	}; // END: for
 }
+
+// ------------------------------------------------------------- //
+// Functional object (body) of the friquencies processing thread //
+// ------------------------------------------------------------- //
 class  ProcessWork {
 
 private:
 
-	vector<int>* values;
-	int index_start;
-	int index_end;
-	int try_count;
-	int this_thread_number;
+	vector<int>* values; // pointer to the values's vector
+	int index_start; // the start index for the current thread
+	int index_end; // the end index for the current thread
+	int try_count; // how many tries to do
+	int this_thread_number; // the current thread's number (inner)
 
 public:
 
@@ -75,9 +144,9 @@ public:
 		index_end{ e },
 		try_count{ t },
 		this_thread_number{ n }
-	{}
+	{};
 
-	// the functional operator
+	// The functional operator
 	void operator() () {
 
 		const bool IS_LOG = false;
@@ -92,16 +161,19 @@ public:
 		for (int y = 0; y != try_count; ++y) {
 
 			int index = distr(re);
-		
+
 			if (IS_LOG) {
-			m.lock();
-			cout << "\tTread " << this_thread_number << " index " << index << endl;						
-			m.unlock();
-			std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+				m.lock();
+				cout << "\tTread " << this_thread_number << " index " << index << endl;
+				m.unlock();
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
 			}
 
 			++((*values)[index]);
-			
+
 		} // END: for
 
 		m.lock();
@@ -112,28 +184,33 @@ public:
 
 };
 
-// Paralell 
+// ------------------------------------------------------- //
+// Function that process friquencies in the paralell order //
+// ------------------------------------------------------- //
 void work_paralell(vector<int>& values) { // inline because it used global variables
 
 	array<thread*, PARTS_COUNT> threads;
 
-	for (int i = 0; i < PARTS_COUNT; ++i) {
+	for (int i = 0; i < PARTS_COUNT; ++i) { // cut the work on some number of parts
 
-		// index of part
+		// Calcs indexes in whole array (vector)
 
 		int start_index = i * PART_SIZE;
 
 		int end_index = start_index + PART_SIZE - 1;
 
+		// Constructs the functional object
+
 		auto threads_functional_object =
 			ProcessWork{ &values, start_index, end_index, TRY_COUNT, thread_number++ };
+
+		// Creates new thread by the functional object
 
 		threads[i] = new thread{ threads_functional_object }; // starts thread number i
 
 	}; // END: for
 
-	// wait for every the thread ends...
-
+	// Starts the paralell processing...
 	for (int i = 0; i < threads.size(); i++) {
 
 		threads[i]->join();
@@ -144,13 +221,15 @@ void work_paralell(vector<int>& values) { // inline because it used global varia
 int main()
 {
 
-	array<int, ARRAY_SIZE> ar;
-	fill(ar.begin(), ar.end(), 0);
-	vector<int> values(ar.begin(), ar.end());
+	array<int, ARRAY_SIZE> ar; // Creates the array by size
+
+	fill(ar.begin(), ar.end(), 0); // Fill array by 0 values
+
+	vector<int> values(ar.begin(), ar.end()); // Creates the vector from array
 
 	cout << endl << "\t" << "Working..." << endl << endl;
 
-	if (!IS_PARALELL) {
+	if (!IS_PARALELL) { // is parralell?
 
 		work_countinuos(values);
 
@@ -163,16 +242,29 @@ int main()
 
 	cout << endl;
 
-	print_results(values);
+	print_results(values); // output to the user
 
-	cout << "Press any key to exit.";
+	// Part 2 - The condition varable (wall) example
 
-	string isend;
+	thread t1{ F1{} }; // the thread that fill some queue by messages
 
-	//_getch(); // wait for keypress
+	thread t2{ F2{} }; // the thread that waiting for messages in queue
+
+	t1.join();
+
+	t2.join();
+
+	// Exit from the program
+
+	cout << "\tPress any key to exit.";
+
+	_getch(); // wait for keypress
 
 } // END: main()
 
+// ------------------------- //
+// Prints result to the user //
+// ------------------------- //
 void print_results(std::vector<int>& values)
 {
 	for (int i = 0; i < PARTS_COUNT; i++) {
@@ -208,5 +300,3 @@ void print_results(std::vector<int>& values)
 	} // END: for
 
 } // END: print_results
-
-
