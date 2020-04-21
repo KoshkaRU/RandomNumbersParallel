@@ -161,7 +161,6 @@
   <ItemGroup>
     <ClInclude Include="main.h" />
     <ClInclude Include="LogCatLog.h" />
-    <ClInclude Include="TestRecord.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

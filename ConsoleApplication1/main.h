@@ -9,7 +9,6 @@
 #include <istream>
 #include "LogCatLog.h"
 #include <unordered_set>
-#include "TestRecord.h"
 #include <iterator>
 
 #pragma comment(lib, "bhriguutilscpp.lib")
