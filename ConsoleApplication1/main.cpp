@@ -1,14 +1,11 @@
-﻿#include "ConsoleApplication1.h"
-#include <array>
-#include <numeric>
-#include <random>
-#include <iterator>
+﻿#include "main.h"
+
 #include <conio.h>
-#include <thread>
-#include <mutex>
-#include <iostream>
 #include <queue>
-#include <chrono>
+#include <thread>
+#include <random>
+#include <array>
+#include <condition_variable>
 
 using namespace std;
 
